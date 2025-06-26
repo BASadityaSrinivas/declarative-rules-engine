@@ -49,10 +49,10 @@
 (defn oper-eval
   [[op val] facts]
   (case op
-    :gt (> ((first val) data) (second val))
-    :lt (< ((first val) data) (second val))
-    :eq (= ((first val) data) (second val))
-    :ne (not= ((first val) data) (second val))
+    :gt (> ((first val) facts) (second val))
+    :lt (< ((first val) facts) (second val))
+    :eq (= ((first val) facts) (second val))
+    :ne (not= ((first val) facts) (second val))
     :and (reduce #(and %1 (oper-eval %2 facts)) true (apply merge val))
     :or (reduce #(or %1 (oper-eval %2 facts)) false (apply merge val))
     false))
