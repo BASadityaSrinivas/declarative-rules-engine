@@ -12,13 +12,13 @@
   (println "log >> " (apply str msg)))
 
 ;; Input data
-(def data {:sensor/temp 35.2
-           :sensor/humidity 87
-           :sensor/soil-moisture 22.5
-           :sensor/light-lux 12000
-           :sensor/door-open? true
-           :sensor/water-tank 1.2
-           :sensor/person-detected-in-house false})
+(def facts {:sensor/temp 35.2
+            :sensor/humidity 87
+            :sensor/soil-moisture 22.5
+            :sensor/light-lux 12000
+            :sensor/door-open? true
+            :sensor/water-tank 1.2
+            :sensor/person-detected-in-house false})
 
 ; ---------------------------- x ---------------------------- ;
 
@@ -47,20 +47,20 @@
 ; ---------------------------- x ---------------------------- ;
 
 (defn oper-eval
-  [[op val]]
+  [[op val] facts]
   (case op
     :gt (> ((first val) data) (second val))
     :lt (< ((first val) data) (second val))
     :eq (= ((first val) data) (second val))
     :ne (not= ((first val) data) (second val))
-    :and (reduce #(and %1 (oper-eval %2)) true (apply merge val))
-    :or (reduce #(or %1 (oper-eval %2)) false (apply merge val))
+    :and (reduce #(and %1 (oper-eval %2 facts)) true (apply merge val))
+    :or (reduce #(or %1 (oper-eval %2 facts)) false (apply merge val))
     false))
 
 (defn rule-eval
-  [{:keys [rule-id if then]}]
+  [{:keys [rule-id if then]} facts]
   (println rule-id if)
-  (let [rule-pass? (reduce #(and %1 (oper-eval %2))
+  (let [rule-pass? (reduce #(and %1 (oper-eval %2 facts))
                            true
                            if)]
     (log (format "EVAL - %s" (name rule-id)))
@@ -76,30 +76,36 @@
             :if {:or [{:and [{:gt [:sensor/temp 37]}
                              {:lt [:sensor/humidity 15]}]}
                       {:gt [:sensor/light-lux 10000]}]}
-            :then :effect/trigger-ventilation})
+            :then :effect/trigger-ventilation}
+           facts)
 
 (rule-eval {:rule-id :high-temperature
             :if {:gt [:sensor/temp 37]}
-            :then :effect/trigger-ventilation})
+            :then :effect/trigger-ventilation}
+           facts)
 
 (rule-eval {:rule-id :water-tank-check-1
             :if {:and [{:lt [:sensor/water-tank 0.3]}
                        {:eq [:sensor/person-detected-in-house true]}]}
-            :then :effect/fill-tank})
+            :then :effect/fill-tank}
+           facts)
 
 (rule-eval {:rule-id :water-tank-check-2
             :if {:gt [:sensor/water-tank 1.0]}
-            :then :effect/tank-overflow})
+            :then :effect/tank-overflow}
+           facts)
 
 (rule-eval {:rule-id :theft-check
             :if {:and [{:ne [:sensor/door-open? false]}
                        {:eq [:sensor/person-detected-in-house false]}]}
-            :then :effect/theft-alert})
+            :then :effect/theft-alert}
+           facts)
 
 (rule-eval {:rule-id :rain-check
             :if {:and [{:gt [:sensor/humidity 70]}
                        {:eq [:sensor/person-detected-in-house false]}]}
-            :then :effect/rain-alert})
+            :then :effect/rain-alert}
+           facts)
 
 ; ---------------------------- x ---------------------------- ;
 
@@ -188,8 +194,7 @@
                      {:eq [:sensor/person-detected-in-house false]}]}
           :then :effect/theft-alert})
 
-(mapv #(rule-eval (assoc (second %) :rule-id (first %))) @rulebook)
+(mapv #(rule-eval (assoc (second %) :rule-id (first %)) facts) @rulebook)
 
 ; ---------------------------- x ---------------------------- ;
-
 
