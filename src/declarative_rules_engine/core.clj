@@ -9,6 +9,7 @@
 
 (def rulebook
   "Stores the collection of rules in the rulebook. Rules are added to the atom dynamically."
+  ^:private
   (atom {}))
 
 (defmacro defrule
@@ -30,6 +31,7 @@
                        :rule-spec (s/explain-str ::spec/rule-spec ~rule-def)})
            (throw (ex-info "INVALID RULE: Please read the rules to write a rule" {:rule (s/describe ::spec/rule-spec)}))))))
 
+; Substitute for the above macro function
 (defn defrule-fn
   [rule-id rule-desc rule-def]
   (if (contains? @rulebook rule-id)
