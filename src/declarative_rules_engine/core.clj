@@ -1,5 +1,7 @@
 (ns declarative-rules-engine.core
-  (:require [clojure.spec.alpha :as s]))
+  (:require [clojure.spec.alpha :as s]
+            [clojure.test.check.generators :as gen]
+            [clojure.tools.logging :as log]))
 
 (defn -main
   [& _]
@@ -7,11 +9,6 @@
 
 ; ---------------------------- x ---------------------------- ;
 
-(defn log
-  [& msg]
-  (println "log >> " (apply str msg)))
-
-;; Input data
 (def facts {:sensor/temp 35.2
             :sensor/humidity 87
             :sensor/soil-moisture 22.5
@@ -63,8 +60,9 @@
   (let [rule-pass? (reduce #(and %1 (oper-eval %2 facts))
                            true
                            if)]
-    (log (format "EVAL - %s" (name rule-id)))
+    (log/info {:status "EVALUATED" :rule-id (name rule-id)})
     (when rule-pass?
+      (log/info {:status "PASSED" :rule-id (name rule-id)})
       (actions then))
     {:rule-id rule-id
      :result rule-pass?
@@ -73,7 +71,7 @@
 ; ---------------------------- x ---------------------------- ;
 
 (rule-eval {:rule-id :high-temperature
-            :if {:or [{:and [{:gt [:sensor/temp 37]}
+            :if {:or [{:and [{:gt [:sensor/temp 33]}
                              {:lt [:sensor/humidity 15]}]}
                       {:gt [:sensor/light-lux 10000]}]}
             :then :effect/trigger-ventilation}
@@ -137,7 +135,7 @@
                                       :sensor/person-detected-in-house}
                             :value ::value))
 
-(s/def ::if (s/or :single (s/map-of ::operator ::sensor-spec)
+(s/def ::if (s/or :single (s/map-of ::operator ::sensor-spec :max-count 1 :min-count 1)
                   :multiple (s/map-of ::cond (s/coll-of ::if))))
 
 (s/def ::rule-spec (s/keys :req-un [::if ::then]))
@@ -164,12 +162,29 @@
   ;validate the rule against spec
   ;register it into the rulebook or equivalent
   ;optionally log registration for observability
-  `(if-not (s/valid? ::rule-spec ~rule-def)
-     (do (log "RULE-ADD FAILED:" ~(name rule-id) " | " (s/explain ::rule-spec ~rule-def))
-         ;(throw (ex-info "INVALID RULE: Please read the rules to write a rule" {:rule (s/describe ::rule-spec)}))
-         )
-     (do (swap! rulebook assoc ~rule-id ~(assoc rule-def :rule-desc rule-desc))
-         (log "RULE-ADD:" ~(name rule-id)))))
+  `(if (contains? @rulebook ~rule-id)
+     (log/warn {:status "DUPLICATE RULE" :rule-id (name ~rule-id)})
+     (if (s/valid? ::rule-spec ~rule-def)
+       (do (swap! rulebook assoc ~rule-id ~(assoc rule-def :rule-desc rule-desc))
+           (log/info {:status "ADDED" :rule-id ~(name rule-id)}))
+       (do (log/error {:status "FAILED"
+                       :rule-id ~(name rule-id)
+                       :rule-spec (s/explain-str ::rule-spec ~rule-def)})
+           ;(throw (ex-info "INVALID RULE: Please read the rules to write a rule" {:rule (s/describe ::rule-spec)}))
+           ))))
+
+(defn defrule-fn
+  [rule-id rule-desc rule-def]
+  (if (contains? @rulebook rule-id)
+    (log/warn {:status "DUPLICATE RULE" :rule-id (name rule-id)})
+    (if (s/valid? ::rule-spec rule-def)
+      (do (swap! rulebook assoc rule-id (assoc rule-def :rule-desc rule-desc))
+          (log/info {:status "ADDED" :rule-id (name rule-id)}))
+      (do (log/error {:status "FAILED"
+                      :rule-id (name rule-id)
+                      :rule-spec (s/explain-str ::rule-spec rule-def)})
+          ;(throw (ex-info "INVALID RULE: Please read the rules to write a rule" {:rule (s/describe ::rule-spec)}))
+          ))))
 
 (defrule :rain-check
          "Alert if it is going to rain soon"
@@ -198,3 +213,19 @@
 
 ; ---------------------------- x ---------------------------- ;
 
+(defn gen-random-rule []
+  (gen/fmap (fn [rule-id]
+              {:rule-id rule-id
+               :if {:gt [:sensor/temp (* 0.1 (rand-int 10000))]}
+               :then :effect/trigger-ventilation})
+            (gen/such-that #(> (count (name %)) 10) gen/keyword 100)))
+
+(defn test-rule-validity []
+  (let [random-rule (gen/sample (gen-random-rule) 10)]
+    (doseq [rule random-rule]
+      (println rule)
+      (println (s/valid? ::rule-spec rule)))))
+
+;(test-rule-validity)
+
+;(gen/generate (s/gen (s/map-of ::operator ::sensor-spec :max-count 1 :min-count 1)))
