@@ -1,7 +1,9 @@
 (ns declarative-rules-engine.core
   (:require [clojure.spec.alpha :as s]
             [clojure.test.check.generators :as gen]
-            [clojure.tools.logging :as log]))
+            [clojure.tools.logging :as log]
+            [declarative-rules-engine.facts :refer [facts]]
+            [declarative-rules-engine.effects :refer [actions]]))
 
 (defn -main
   [& _]
@@ -9,41 +11,17 @@
 
 ; ---------------------------- x ---------------------------- ;
 
-(def facts {:sensor/temp 35.2
-            :sensor/humidity 87
-            :sensor/soil-moisture 22.5
-            :sensor/light-lux 12000
-            :sensor/door-open? true
-            :sensor/water-tank 1.2
-            :sensor/person-detected-in-house false})
-
-; ---------------------------- x ---------------------------- ;
-
-(defmulti actions (fn [x] x))
-
-(defmethod actions :effect/trigger-ventilation
-  [_]
-  (println "Ventilation opened"))
-
-(defmethod actions :effect/rain-alert
-  [_]
-  (println "Rain alert !!!"))
-
-(defmethod actions :effect/theft-alert
-  [_]
-  (println "Burglar alert !!!"))
-
-(defmethod actions :effect/fill-tank
-  [_]
-  (println "Water tank motor - ON"))
-
-(defmethod actions :effect/tank-overflow
-  [_]
-  (println "Water overflow. Water tank motor - OFF"))
-
-; ---------------------------- x ---------------------------- ;
-
 (defn oper-eval
+  "Evaluates a given condition (operator and value) against the provided facts.
+   Supports operators such as :gt, :lt, :eq, :ne, :and, :or. It returns true or false based on the evaluation result.
+
+   Parameters:
+   - `op`: The operator to apply (e.g., :gt, :lt).
+   - `val`: The value(s) for the operator to compare against the fact (e.g., [:sensor/temp 30]).
+   - `facts`: A map of sensor data to evaluate the condition against.
+
+   Returns:
+   - A boolean indicating whether the condition is satisfied."
   [[op val] facts]
   (case op
     :gt (> ((first val) facts) (second val))
@@ -55,6 +33,15 @@
     false))
 
 (defn rule-eval
+  "Evaluates a rule by checking its condition against the provided facts.
+   If the condition is true, the corresponding action (effect) is triggered. Logs the evaluation status.
+
+   Parameters:
+   - `rule`: A map containing the rule definition, including `:rule-id`, `:if` (condition), and `:then` (action).
+   - `facts`: A map of sensor data to evaluate the rule against.
+
+   Returns:
+   - A map containing the rule ID, the evaluation result (true or false), and the action to be triggered if the rule passes."
   [{:keys [rule-id if then]} facts]
   (println rule-id if)
   (let [rule-pass? (reduce #(and %1 (oper-eval %2 facts))
@@ -107,61 +94,19 @@
 
 ; ---------------------------- x ---------------------------- ;
 
-(s/def ::rule-id keyword?)
-
-(s/def ::then #{:effect/trigger-ventilation
-                :effect/rain-alert
-                :effect/theft-alert
-                :effect/fill-tank
-                :effect/tank-overflow})
-
-(s/def ::cond #{:and :or})
-(s/def ::operator #{:gt :lt :eq :ne})
-
-(s/def ::value (s/or :bool boolean?
-                     :int (s/and int?
-                                 #(>= % 0)
-                                 #(< % 20000))
-                     :float (s/and float?
-                                   #(>= % 0)
-                                   #(<= % 100))))
-
-(s/def ::sensor-spec (s/cat :sensor #{:sensor/temp
-                                      :sensor/humidity
-                                      :sensor/soil-moisture
-                                      :sensor/light-lux
-                                      :sensor/door-open?
-                                      :sensor/water-tank
-                                      :sensor/person-detected-in-house}
-                            :value ::value))
-
-(s/def ::if (s/or :single (s/map-of ::operator ::sensor-spec :max-count 1 :min-count 1)
-                  :multiple (s/map-of ::cond (s/coll-of ::if))))
-
-(s/def ::rule-spec (s/keys :req-un [::if ::then]))
-
-; ---------------------------- x ---------------------------- ;
-
-(s/valid? ::rule-spec
-          {:rule-id :rain-check
-           :if {:gt [:sensor/humidity 70]}
-           :then :effect/rain-alert})
-
-(s/valid? ::rule-spec
-          {:rule-id :rain-check
-           :if {:and [{:gt [:sensor/humidity 70]}
-                      {:eq [:sensor/person-detected-in-house false]}]}
-           :then :effect/rain-alert})
-
-; ---------------------------- x ---------------------------- ;
-
-(def rulebook (atom {}))
+(def rulebook
+  "Stores the collection of rules in the rulebook. Rules are added to the atom dynamically."
+  (atom {}))
 
 (defmacro defrule
+  "A macro to define a new rule. It validates the rule against the rule specification, registers it in the rulebook,
+   and logs the result of the registration. If the rule is invalid or duplicate, an error is logged.
+
+   Parameters:
+   - `rule-id`: The unique identifier for the rule.
+   - `rule-desc`: A description of the rule's purpose or behavior.
+   - `rule-def`: The rule definition containing the condition and action."
   [rule-id rule-desc rule-def]
-  ;validate the rule against spec
-  ;register it into the rulebook or equivalent
-  ;optionally log registration for observability
   `(if (contains? @rulebook ~rule-id)
      (log/warn {:status "DUPLICATE RULE" :rule-id (name ~rule-id)})
      (if (s/valid? ::rule-spec ~rule-def)
@@ -209,6 +154,7 @@
                      {:eq [:sensor/person-detected-in-house false]}]}
           :then :effect/theft-alert})
 
+; Rules Evaluator
 (mapv #(rule-eval (assoc (second %) :rule-id (first %)) facts) @rulebook)
 
 ; ---------------------------- x ---------------------------- ;
