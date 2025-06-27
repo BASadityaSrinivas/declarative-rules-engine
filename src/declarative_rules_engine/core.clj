@@ -3,94 +3,12 @@
             [clojure.test.check.generators :as gen]
             [clojure.tools.logging :as log]
             [declarative-rules-engine.facts :refer [facts]]
-            [declarative-rules-engine.effects :refer [actions]]))
+            [declarative-rules-engine.evaluator :refer [rule-eval]]
+            [declarative-rules-engine.spec :as spec]))
 
 (defn -main
   [& _]
   (println "Welcome to the Rule Engine !!"))
-
-; ---------------------------- x ---------------------------- ;
-
-(defn oper-eval
-  "Evaluates a given condition (operator and value) against the provided facts.
-   Supports operators such as :gt, :lt, :eq, :ne, :and, :or. It returns true or false based on the evaluation result.
-
-   Parameters:
-   - `op`: The operator to apply (e.g., :gt, :lt).
-   - `val`: The value(s) for the operator to compare against the fact (e.g., [:sensor/temp 30]).
-   - `facts`: A map of sensor data to evaluate the condition against.
-
-   Returns:
-   - A boolean indicating whether the condition is satisfied."
-  [[op val] facts]
-  (case op
-    :gt (> ((first val) facts) (second val))
-    :lt (< ((first val) facts) (second val))
-    :eq (= ((first val) facts) (second val))
-    :ne (not= ((first val) facts) (second val))
-    :and (reduce #(and %1 (oper-eval %2 facts)) true (apply merge val))
-    :or (reduce #(or %1 (oper-eval %2 facts)) false (apply merge val))
-    false))
-
-(defn rule-eval
-  "Evaluates a rule by checking its condition against the provided facts.
-   If the condition is true, the corresponding action (effect) is triggered. Logs the evaluation status.
-
-   Parameters:
-   - `rule`: A map containing the rule definition, including `:rule-id`, `:if` (condition), and `:then` (action).
-   - `facts`: A map of sensor data to evaluate the rule against.
-
-   Returns:
-   - A map containing the rule ID, the evaluation result (true or false), and the action to be triggered if the rule passes."
-  [{:keys [rule-id if then]} facts]
-  (println rule-id if)
-  (let [rule-pass? (reduce #(and %1 (oper-eval %2 facts))
-                           true
-                           if)]
-    (log/info {:status "EVALUATED" :rule-id (name rule-id)})
-    (when rule-pass?
-      (log/info {:status "PASSED" :rule-id (name rule-id)})
-      (actions then))
-    {:rule-id rule-id
-     :result rule-pass?
-     :then (when rule-pass? :then/trigger-ventilation)}))
-
-; ---------------------------- x ---------------------------- ;
-
-(rule-eval {:rule-id :high-temperature
-            :if {:or [{:and [{:gt [:sensor/temp 33]}
-                             {:lt [:sensor/humidity 15]}]}
-                      {:gt [:sensor/light-lux 10000]}]}
-            :then :effect/trigger-ventilation}
-           facts)
-
-(rule-eval {:rule-id :high-temperature
-            :if {:gt [:sensor/temp 37]}
-            :then :effect/trigger-ventilation}
-           facts)
-
-(rule-eval {:rule-id :water-tank-check-1
-            :if {:and [{:lt [:sensor/water-tank 0.3]}
-                       {:eq [:sensor/person-detected-in-house true]}]}
-            :then :effect/fill-tank}
-           facts)
-
-(rule-eval {:rule-id :water-tank-check-2
-            :if {:gt [:sensor/water-tank 1.0]}
-            :then :effect/tank-overflow}
-           facts)
-
-(rule-eval {:rule-id :theft-check
-            :if {:and [{:ne [:sensor/door-open? false]}
-                       {:eq [:sensor/person-detected-in-house false]}]}
-            :then :effect/theft-alert}
-           facts)
-
-(rule-eval {:rule-id :rain-check
-            :if {:and [{:gt [:sensor/humidity 70]}
-                       {:eq [:sensor/person-detected-in-house false]}]}
-            :then :effect/rain-alert}
-           facts)
 
 ; ---------------------------- x ---------------------------- ;
 
@@ -109,69 +27,76 @@
   [rule-id rule-desc rule-def]
   `(if (contains? @rulebook ~rule-id)
      (log/warn {:status "DUPLICATE RULE" :rule-id (name ~rule-id)})
-     (if (s/valid? ::rule-spec ~rule-def)
+     (if (s/valid? ::spec/rule-spec ~rule-def)
        (do (swap! rulebook assoc ~rule-id ~(assoc rule-def :rule-desc rule-desc))
            (log/info {:status "ADDED" :rule-id ~(name rule-id)}))
        (do (log/error {:status "FAILED"
                        :rule-id ~(name rule-id)
-                       :rule-spec (s/explain-str ::rule-spec ~rule-def)})
-           ;(throw (ex-info "INVALID RULE: Please read the rules to write a rule" {:rule (s/describe ::rule-spec)}))
+                       :rule-spec (s/explain-str ::spec/rule-spec ~rule-def)})
+           ;(throw (ex-info "INVALID RULE: Please read the rules to write a rule" {:rule (s/describe ::spec/rule-spec)}))
            ))))
 
 (defn defrule-fn
   [rule-id rule-desc rule-def]
   (if (contains? @rulebook rule-id)
     (log/warn {:status "DUPLICATE RULE" :rule-id (name rule-id)})
-    (if (s/valid? ::rule-spec rule-def)
+    (if (s/valid? ::spec/rule-spec rule-def)
       (do (swap! rulebook assoc rule-id (assoc rule-def :rule-desc rule-desc))
           (log/info {:status "ADDED" :rule-id (name rule-id)}))
       (do (log/error {:status "FAILED"
                       :rule-id (name rule-id)
-                      :rule-spec (s/explain-str ::rule-spec rule-def)})
-          ;(throw (ex-info "INVALID RULE: Please read the rules to write a rule" {:rule (s/describe ::rule-spec)}))
+                      :rule-spec (s/explain-str ::spec/rule-spec rule-def)})
+          ;(throw (ex-info "INVALID RULE: Please read the rules to write a rule" {:rule (s/describe ::spec/rule-spec)}))
           ))))
-
-(defrule :rain-check
-         "Alert if it is going to rain soon"
-         {:if {:and [{:gt [:sensor/humidity 70]}
-                     {:eq [:sensor/person-detected-in-house false]}]}
-          :then :effect/rain-alert})
-
-(defrule :theft-check
-         "Alert for any possible theft"
-         {:if {:and [{:ne [:sensor/door-open? false]}
-                     {:eq [:sensor/person-detected-in-house false]}]}
-          :then :effect/theft-alert})
-
-(defrule :high-temperature
-         "Open the ventilation if the temperature is high"
-         {:if {:gt [:sensor/temp 37]}
-          :then :effect/trigger-ventilation})
-
-(defrule :theft-check
-         "Alert for any possible theft"
-         {:if {:and [{:ne [:sensor/door-open? "false"]}
-                     {:eq [:sensor/person-detected-in-house false]}]}
-          :then :effect/theft-alert})
-
-; Rules Evaluator
-(mapv #(rule-eval (assoc (second %) :rule-id (first %)) facts) @rulebook)
 
 ; ---------------------------- x ---------------------------- ;
 
-(defn gen-random-rule []
-  (gen/fmap (fn [rule-id]
-              {:rule-id rule-id
-               :if {:gt [:sensor/temp (* 0.1 (rand-int 10000))]}
-               :then :effect/trigger-ventilation})
-            (gen/such-that #(> (count (name %)) 10) gen/keyword 100)))
+; Rules Adder
+(comment
+  (defrule :rain-check
+           "Alert if it is going to rain soon"
+           {:if {:and [{:gt [:sensor/humidity 70]}
+                       {:eq [:sensor/person-detected-in-house false]}]}
+            :then :effect/rain-alert})
 
-(defn test-rule-validity []
-  (let [random-rule (gen/sample (gen-random-rule) 10)]
-    (doseq [rule random-rule]
-      (println rule)
-      (println (s/valid? ::rule-spec rule)))))
+  (defrule :theft-check
+           "Alert for any possible theft"
+           {:if {:and [{:ne [:sensor/door-open? false]}
+                       {:eq [:sensor/person-detected-in-house false]}]}
+            :then :effect/theft-alert})
 
-;(test-rule-validity)
+  (defrule :high-temperature
+           "Open the ventilation if the temperature is high and humidity is low"
+           {:if {:or [{:and [{:gt [:sensor/temp 33]}
+                             {:lt [:sensor/humidity 15]}]}
+                      {:gt [:sensor/light-lux 10000]}]}
+            :then :effect/trigger-ventilation})
 
-;(gen/generate (s/gen (s/map-of ::operator ::sensor-spec :max-count 1 :min-count 1)))
+  (defrule :water-tank-check-on
+           "Turn on water tank motor if the water tank is low and a person is detected in the house"
+           {:if {:and [{:lt [:sensor/water-tank 0.3]}
+                       {:eq [:sensor/person-detected-in-house true]}]}
+            :then :effect/fill-tank})
+
+  (defrule :water-tank-full-check
+           "Turn off water tank motor if the water tank is full"
+           {:if {:gt [:sensor/water-tank 1.0]}
+            :then :effect/tank-overflow})
+
+  ; Duplicate case
+  (defrule :water-tank-full-check
+           "Turn off water tank motor if the water tank is full"
+           {:if {:gt [:sensor/water-tank 0.9]}
+            :then :effect/tank-overflow})
+
+  ; Spec validation error
+  (defrule :theft-check-999
+           "Alert for any possible theft"
+           {:if {:and [{:ne [:sensor/door-open? "false"]}
+                       {:eq [:sensor/person-detected-in-house false]}]}
+            :then :effect/theft-alert}))
+
+; Rules Evaluator
+(comment
+ (mapv #(rule-eval (assoc (second %) :rule-id (first %)) facts) @rulebook))
+
