@@ -42,8 +42,15 @@
       (do (log/error {:status "FAILED"
                       :rule-id (name rule-id)
                       :rule-spec (s/explain-str ::spec/rule-spec rule-def)})
-          ;(throw (ex-info "INVALID RULE: Please read the rules to write a rule" {:rule (s/describe ::spec/rule-spec)}))
-          ))))
+          (throw (ex-info "INVALID RULE: Please read the rules to write a rule" {:rule (s/describe ::spec/rule-spec)}))))))
+
+(defn show-rulebook
+  []
+  @rulebook)
+
+(defn eval-rulebook
+  [rule-book]
+  (mapv #(rule-eval (assoc (second %) :rule-id (first %)) facts) @rule-book))
 
 ; ---------------------------- x ---------------------------- ;
 
@@ -94,5 +101,5 @@
 
 ; Rules Evaluator
 (comment
-  (mapv #(rule-eval (assoc (second %) :rule-id (first %)) facts) @rulebook))
-
+  (show-rulebook)
+  (eval-rulebook rulebook))
