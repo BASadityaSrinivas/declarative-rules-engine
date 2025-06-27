@@ -6,5 +6,6 @@
                  [org.clojure/tools.logging "1.3.0"]]
   :main ^:skip-aot declarative-rules-engine.core
   :target-path "target/%s"
+  :test-paths ["test"]
   :profiles {:uberjar {:aot :all
                        :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}})
