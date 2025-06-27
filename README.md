@@ -1,14 +1,8 @@
 # Declarative Rules Engine
-A lightweight, idiomatic rules engine built in Clojure that allows users to define declarative validation and control rules. The engine evaluates dynamic input data (facts) against these rules and triggers actions (effects) accordingly. This project uses Clojure.spec for validation, multimethods for action dispatching, and provides a flexible, extensible architecture.
-
-## Features
-- Declarative Rules: Define rules using Clojure maps with conditions (if) and actions (then).
-- Rule Evaluation: Evaluate rules dynamically based on real-time facts (sensor data, user input, etc.).
-- Action Dispatching: Trigger actions (effects) such as sending alerts, opening ventilation, etc.
-- Clojure.spec Validation: Ensure that rules and facts conform to a valid structure.
-- Extensibility: Easily add new operators, actions, or validation rules as the system grows.
-- Logging: Built-in logging to track rule evaluations and actions triggered.
-- Testable: Unit tests for rules, facts validation, and overall system functionality.
+A lightweight, idiomatic rules engine built in Clojure that allows users to define declarative validation 
+and control rules. The engine evaluates dynamic input data (facts) against these rules and triggers actions (effects) 
+accordingly. This project uses Clojure.spec for validation, multimethods for action dispatching, and provides 
+a flexible, extensible architecture.
 
 ## Project structure
 ```
@@ -40,9 +34,8 @@ declarative-rules-engine/
           :then :effect/trigger-ventilation})
 ```
 
-In this example:
-- The rule is named :high-temperature.
-- It triggers the :effect/trigger-ventilation action if:
+- The rule is named `:high-temperature`.
+- It triggers the `:effect/trigger-ventilation` action if:
   - The temperature is above 33°C and humidity is below 15%, or
   - The light intensity is greater than 10,000 lux.
 
@@ -58,9 +51,9 @@ In this example:
 ### Adding New Rules
 You can add new rules by defining them using the defrule macro. Each rule should have:
 
-- A unique :rule-id.
-- A condition (:if) that uses operators like :gt, :lt, :eq, and logical combinations like :and or :or.
-- An action (:then) that corresponds to an effect, like :effect/trigger-ventilation.
+- A unique `:rule-id`.
+- A condition (`:if`) that uses operators like `:gt`, `:lt`, `:eq`, and logical combinations like `:and` or `:or`.
+- An action (`:then`) that corresponds to an effect, like `:effect/trigger-ventilation`.
 
 ```clojure
 (defrule :rain-check
