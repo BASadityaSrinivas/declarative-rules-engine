@@ -43,10 +43,24 @@ declarative-rules-engine/
 
 ```clojure
 (rule-eval {:rule-id :high-temperature
-            :if {:gt [:sensor/temp 37]}
+            :if {:or [{:and [{:gt [:sensor/temp 33]}
+                             {:lt [:sensor/humidity 15]}]}
+                      {:gt [:sensor/light-lux 10000]}]}
             :then :effect/trigger-ventilation}
            facts)
 ```
+
+**Output**
+
+```clojure
+INFO: {:status EVALUATED, :rule-id high-temperature}
+INFO: {:status PASSED, :rule-id high-temperature}
+Ventilation opened
+=> [{:rule-id :high-temperature, :result true, :then :then/trigger-ventilation}]
+
+```
+
+
 
 ### Adding New Rules
 You can add new rules by defining them using the defrule macro. Each rule should have:
@@ -61,4 +75,10 @@ You can add new rules by defining them using the defrule macro. Each rule should
          {:if {:and [{:gt [:sensor/humidity 70]}
                      {:eq [:sensor/person-detected-in-house false]}]}
           :then :effect/rain-alert})
+```
+
+**Output**
+
+```clojure
+INFO: {:rule-id rain-check, :status ADDED}
 ```
