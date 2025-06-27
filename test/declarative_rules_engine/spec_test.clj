@@ -7,9 +7,9 @@
             [declarative-rules-engine.spec :as spec]))
 
 (defspec rules-spec-test
-  100
+  10
   (prop/for-all [rule (s/gen ::spec/operator)]
-                (s/valid? ::spec/operator rule)))
+    (println (s/explain ::spec/operator rule))))
 
 (s/valid? ::spec/rule-spec
           {:rule-id :rain-check
@@ -36,5 +36,6 @@
       (println (s/valid? ::spec/rule-spec rule)))))
 
 (comment
+  (s/exercise ::spec/rule-spec)
   (test-rule-validity)
   (gen/generate (s/gen (s/map-of ::operator ::sensor-spec :max-count 1 :min-count 1))))

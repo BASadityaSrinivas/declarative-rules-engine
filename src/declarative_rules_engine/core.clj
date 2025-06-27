@@ -1,6 +1,5 @@
 (ns declarative-rules-engine.core
   (:require [clojure.spec.alpha :as s]
-            [clojure.test.check.generators :as gen]
             [clojure.tools.logging :as log]
             [declarative-rules-engine.facts :refer [facts]]
             [declarative-rules-engine.evaluator :refer [rule-eval]]
@@ -33,8 +32,7 @@
        (do (log/error {:status "FAILED"
                        :rule-id ~(name rule-id)
                        :rule-spec (s/explain-str ::spec/rule-spec ~rule-def)})
-           ;(throw (ex-info "INVALID RULE: Please read the rules to write a rule" {:rule (s/describe ::spec/rule-spec)}))
-           ))))
+           (throw (ex-info "INVALID RULE: Please read the rules to write a rule" {:rule (s/describe ::spec/rule-spec)}))))))
 
 (defn defrule-fn
   [rule-id rule-desc rule-def]
