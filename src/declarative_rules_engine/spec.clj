@@ -30,6 +30,6 @@
                             :value ::value))
 
 (s/def ::if (s/or :single (s/map-of ::operator ::sensor-spec :max-count 1 :min-count 1)
-                  :multiple (s/map-of ::condition (s/coll-of ::if))))
+                  :multiple (s/map-of ::condition (s/coll-of ::if :max-count 3 :min-count 2) :max-count 2 :min-count 1)))
 
 (s/def ::rule-spec (s/keys :req-un [::if ::then]))

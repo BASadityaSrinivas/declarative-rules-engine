@@ -5,10 +5,6 @@
             [declarative-rules-engine.evaluator :refer [rule-eval]]
             [declarative-rules-engine.spec :as spec]))
 
-(defn -main
-  [& _]
-  (println "Welcome to the Rule Engine !!"))
-
 ; ---------------------------- x ---------------------------- ;
 
 (def rulebook
@@ -96,5 +92,5 @@
 
 ; Rules Evaluator
 (comment
- (mapv #(rule-eval (assoc (second %) :rule-id (first %)) facts) @rulebook))
+  (mapv #(rule-eval (assoc (second %) :rule-id (first %)) facts) @rulebook))
 
