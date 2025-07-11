@@ -8,8 +8,8 @@
 
 (defspec rules-spec-test
   10
-  (prop/for-all [rule (s/gen ::spec/sensor-spec)]
-    (println (s/explain ::spec/sensor-spec rule))))
+  (prop/for-all [rule (s/gen ::spec/rule-spec)]
+    (println (s/explain ::spec/rule-spec rule))))
 
 (s/valid? ::spec/rule-spec
           {:rule-id :rain-check
@@ -36,7 +36,7 @@
       (println (s/valid? ::spec/rule-spec rule)))))
 
 (comment
-  (binding [s/*recursion-limit* 3]
+  (binding [s/*recursion-limit* 2]
     (gen/generate (s/gen ::spec/rule-spec)))
   (test-rule-validity)
   (gen/generate (s/gen ::spec/sensor-spec))
